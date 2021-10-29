@@ -197,10 +197,6 @@ def sigmoid(t):
 
 
 def calculate_loss_lr(y, tx, w):
-    #change -1 values to 0 in order for loss to work
-    y_ = y
-    y_[y_]
-    
     eps = 1e-6
     pred = sigmoid(np.matmul(tx, w))
     a = np.matmul(y.T, np.log(pred+eps)) 

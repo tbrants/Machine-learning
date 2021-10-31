@@ -20,15 +20,18 @@ def build_poly(x, degree):
 
 
 def manipulate_missing_values(tx):
-    tx_999 = tx
-    tx_999[tx_999 == -999.0] = np.nan
-    avg_column = np.array([np.nanmean(tx_999, axis=0)])
-    avg_column_ = np.repeat(avg_column, tx_999.shape[0], axis=0)
+    tx[tx == -999.0] = np.nan
+    tx = pd.DataFrame(tx)
+    tx=tx.dropna(axis=1, how='all')
+    tx = tx.to_numpy()
+    avg_column = np.array([np.nanmean(tx, axis=0)])
+    avg_column_ = np.repeat(avg_column, tx.shape[0], axis=0)
     one_dim_indices_to_subst = np.where(np.isnan(tx))
-    two_dim_indices_to_subst = np.squeeze(np.dstack((one_dim_indices_to_subst[0],one_dim_indices_to_subst[1])), axis=0)
-    tx[two_dim_indices_to_subst] = avg_column_[two_dim_indices_to_subst]
-    return tx_999
-
+    two_dim_indices_to_subst = zip(one_dim_indices_to_subst[0],one_dim_indices_to_subst[1])
+    for t in two_dim_indices_to_subst:
+        tx[t]=avg_column_[t]
+    
+    return tx
 
 # normalize features
 def normalize_features(tx):
@@ -113,10 +116,10 @@ def create_subdata_jetnumber(tx, y , tx_test):
             xtr_2 = tx[jeti_train[i]]
             ytr_2 = y[jeti_train[i]]
             xte_2 = tx_test[jeti_test[i]]
-            xtr2, xte_2 = data_process(xtr_2, xte_2)
-    X_TRAIN_jets = np.array([xtr_0, xtr_1, xtr_2])
-    Y_TRAIN_jets = np.array([ytr_0,ytr_1,ytr_2])
-    X_TEST = np.array([xte_0,xte_1,xte_2])
+            xtr_2, xte_2 = data_process(xtr_2, xte_2)
+    X_TRAIN_jets = [xtr_0, xtr_1, xtr_2]
+    Y_TRAIN_jets = [ytr_0,ytr_1,ytr_2]
+    X_TEST = [xte_0,xte_1,xte_2]
     return X_TRAIN_jets, Y_TRAIN_jets, X_TEST
 
 " MACHINE LEARNING METHODS"
@@ -199,12 +202,12 @@ def sigmoid(t):
 def calculate_loss_lr(y, tx, w):
     #change -1 values to 0 in order for loss to work
     y_ = y
-    y_[y_ == -1] = 0
+    y_[y_]
     
     eps = 1e-6
     pred = sigmoid(np.matmul(tx, w))
-    a = np.matmul(y_.T, np.log(pred+eps)) 
-    b = np.matmul((1-y_).T, np.log(1-pred+eps))
+    a = np.matmul(y.T, np.log(pred+eps)) 
+    b = np.matmul((1-y).T, np.log(1-pred+eps))
     loss = a+b
     return np.sum(- loss)
 

@@ -1,3 +1,4 @@
+
 import csv
 import numpy as np
 import matplotlib.pyplot as plt
@@ -17,12 +18,12 @@ def build_poly(x, degree):
         poly = np.c_[poly, np.power(x, deg)]
     return poly
 
-
 def manipulate_missing_values(tx):
     tx[tx == -999.0] = np.nan
     tx = pd.DataFrame(tx)
-    tx=tx.dropna(axis=1, how='all')
+    tx.dropna(axis=1, how='all',inplace=True)
     tx = tx.to_numpy()
+    print(tx)
     avg_column = np.array([np.nanmean(tx, axis=0)])
     avg_column_ = np.repeat(avg_column, tx.shape[0], axis=0)
     one_dim_indices_to_subst = np.where(np.isnan(tx))
@@ -30,6 +31,18 @@ def manipulate_missing_values(tx):
     for t in two_dim_indices_to_subst:
         tx[t]=avg_column_[t]
     
+    return tx
+
+def manipulate_missing_valuess(tx):
+    tx[tx == -999.0] = np.nan
+    tx = pd.DataFrame(tx)
+    print(tx.head())
+    tx = tx.dropna(axis=1, how='all')
+    print(tx.head())
+    tx = tx.to_numpy()
+    avg_per_column = np.nanmean(tx, axis=0)
+    index_to_subst = np.where(np.isnan(tx))
+    tx[index_to_subst] = np.take(avg_per_column, index_to_subst[1])
     return tx
 
 # normalize features
@@ -69,23 +82,26 @@ def balance_data(tx, y, perc_plus_labels):
     return tx.reshape(-1,30), y
 
 #lognormalize features
-def lognormalize_features(tx):
-    skewed_indices = [0, 1, 2, 3, 5, 8, 9, 10, 13, 16, 19, 21, 23, 26, 29] ## indices obtained by looking at the data
+def lognormalize_features(tx, jet):
+    if jet == 0:
+            skewed_indices = [0,1,2,3,5,6,9,12,15,17] ## indices obtained by looking at the data
+    elif jet == 1:
+            skewed_indices = [0,1,2,3,5,6,9,12,15,17,19,22] ## indices obtained by looking at the data
+    elif jet == 2:
+            skewed_indices = [0,1,2,3,5,8,9,13,16,19,21,23,26,29] ## indices obtained by looking at the data
     tx[:, skewed_indices] = np.log1p(tx[:, skewed_indices])
     return tx
 
 #process data
-def data_process(x_tr,x_te,processing_level):
-    if processing_level == 'std': 
-        #standardize
-        x_tr = standardize_features(x_tr)
-        x_te = standardize_features(x_te)
+def data_process(x_tr,x_te,jet):
+    #lognormalize
+    x_tr = lognormalize_features(x_tr, jet)
+    x_te = lognormalize_features(x_te, jet)
     
-    if (processing_level == 'log') | (processing_level == 'std'):
-        #lognormalize
-        x_tr = lognormalize_features(x_tr)
-        x_te = lognormalize_features(x_te)
-        
+    #standardize
+    x_tr = standardize_features(x_tr)
+    x_te = standardize_features(x_te)
+    
     #average -999 values
     x_tr = manipulate_missing_values(x_tr)
     x_te = manipulate_missing_values(x_te)
@@ -99,7 +115,7 @@ def get_index_jet(tx):
     return [jeti_0, jeti_1, jeti_2]
 
 #create subsets of data according to the jetnumber
-def create_subdata_jetnumber(tx, y , tx_test, processing_level):
+def create_subdata_jetnumber(tx, y, tx_test):
     jeti_train = get_index_jet(tx)  ## Separation of the data using the jet number
     jeti_test = get_index_jet(tx_test)
     for i in range(3):
@@ -107,17 +123,45 @@ def create_subdata_jetnumber(tx, y , tx_test, processing_level):
             xtr_0 = tx[jeti_train[i]]
             ytr_0 = y[jeti_train[i]]
             xte_0 = tx_test[jeti_test[i]]
-            xtr_0, xte_0 = data_process(xtr_0, xte_0, processing_level)
+            xtr_0, xte_0 = data_process(xtr_0,xte_0,i)
         if i == 1:
             xtr_1 = tx[jeti_train[i]]
             ytr_1 = y[jeti_train[i]]
             xte_1 =  tx_test[jeti_test[i]]
-            xtr_1, xte_1 = data_process(xtr_1, xte_1, processing_level) 
+            xtr_1, xte_1 = data_process(xtr_1,xte_1,i)
         if i == 2:
             xtr_2 = tx[jeti_train[i]]
             ytr_2 = y[jeti_train[i]]
             xte_2 = tx_test[jeti_test[i]]
-            xtr_2, xte_2 = data_process(xtr_2, xte_2, processing_level)
+            xtr_2, xte_2 = data_process(xtr_2,xte_2,i)
+    X_TRAIN_jets = [xtr_0, xtr_1, xtr_2]
+    Y_TRAIN_jets = [ytr_0,ytr_1,ytr_2]
+    X_TEST = [xte_0,xte_1,xte_2]
+    return X_TRAIN_jets, Y_TRAIN_jets, X_TEST
+
+#create subsets of data according to the jetnumber without data processing
+def create_subdata_jetnumber_without_dataprocessing(tx, y , tx_test):
+    jeti_train = get_index_jet(tx)  ## Separation of the data using the jet number
+    jeti_test = get_index_jet(tx_test)
+    for i in range(3):
+        if i == 0:
+            xtr_0 = tx[jeti_train[i]]
+            ytr_0 = y[jeti_train[i]]
+            xte_0 = tx_test[jeti_test[i]]
+            xtr_0 = manipulate_missing_values(xtr_0)
+            xte_0 = manipulate_missing_values(xte_0)
+        if i == 1:
+            xtr_1 = tx[jeti_train[i]]
+            ytr_1 = y[jeti_train[i]]
+            xte_1 =  tx_test[jeti_test[i]]
+            xtr_1 = manipulate_missing_values(xtr_1)
+            xte_1 = manipulate_missing_values(xte_1)
+        if i == 2:
+            xtr_2 = tx[jeti_train[i]]
+            ytr_2 = y[jeti_train[i]]
+            xte_2 = tx_test[jeti_test[i]]
+            xtr_2 = manipulate_missing_values(xtr_2)
+            xte_2 = manipulate_missing_values(xte_2)
     X_TRAIN_jets = [xtr_0, xtr_1, xtr_2]
     Y_TRAIN_jets = [ytr_0,ytr_1,ytr_2]
     X_TEST = [xte_0,xte_1,xte_2]
@@ -383,9 +427,6 @@ def accuracy(y_true, y_pred):
 
 def hyperparameter_tuning(y,tx,k,seed,meth,max_iterations,degrees,gammas,lambdas,initial):
     pd_filled = pd.DataFrame()
-    max_acc = 0
-    opt_w = []
-    opt_degree = 0
     for lam in lambdas:
         for ga in gammas:
             for deg in degrees:
@@ -399,10 +440,6 @@ def hyperparameter_tuning(y,tx,k,seed,meth,max_iterations,degrees,gammas,lambdas
                                                              ma, 
                                                              ga, 
                                                              lam)
-                        if acc > max_acc:
-                            maw_acc = acc
-                            opt_w = w
-                            opt_degree = deg
                         dictio = {'max_iters':ma,'lambda':lam,'gamma':ga,'degree':deg,'out_w':w, 'rmse_tr':rmse_tr, 'rmse_te':rmse_te, 'f1':f1, 'acc':acc, 'factors':ini}
                         pd_filled = pd_filled.append(dictio, ignore_index=True)
-    return pd_filled, opt_w, opt_degree 
+    return pd_filled

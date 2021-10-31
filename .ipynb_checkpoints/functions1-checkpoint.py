@@ -76,15 +76,17 @@ def lognormalize_features(tx):
     return tx
 
 #process data
-def data_process(x_tr,x_te):
-    #lognormalize
-    x_tr = lognormalize_features(x_tr)
-    x_te = lognormalize_features(x_te)
+def data_process(x_tr,x_te,processing_level):
+    if processing_level == 'std': 
+        #standardize
+        x_tr = standardize_features(x_tr)
+        x_te = standardize_features(x_te)
     
-    #standardize
-    x_tr = standardize_features(x_tr)
-    x_te = standardize_features(x_te)
-    
+    if (processing_level == 'log') | (processing_level == 'std'):
+        #lognormalize
+        x_tr = lognormalize_features(x_tr)
+        x_te = lognormalize_features(x_te)
+        
     #average -999 values
     x_tr = manipulate_missing_values(x_tr)
     x_te = manipulate_missing_values(x_te)
@@ -98,7 +100,7 @@ def get_index_jet(tx):
     return [jeti_0, jeti_1, jeti_2]
 
 #create subsets of data according to the jetnumber
-def create_subdata_jetnumber(tx, y , tx_test):
+def create_subdata_jetnumber(tx, y , tx_test, processing_level):
     jeti_train = get_index_jet(tx)  ## Separation of the data using the jet number
     jeti_test = get_index_jet(tx_test)
     for i in range(3):
@@ -106,17 +108,17 @@ def create_subdata_jetnumber(tx, y , tx_test):
             xtr_0 = tx[jeti_train[i]]
             ytr_0 = y[jeti_train[i]]
             xte_0 = tx_test[jeti_test[i]]
-            xtr_0, xte_0 = data_process(xtr_0, xte_0)
+            xtr_0, xte_0 = data_process(xtr_0, xte_0, processing_level)
         if i == 1:
             xtr_1 = tx[jeti_train[i]]
             ytr_1 = y[jeti_train[i]]
             xte_1 =  tx_test[jeti_test[i]]
-            xtr_1, xte_1 = data_process(xtr_1, xte_1) 
+            xtr_1, xte_1 = data_process(xtr_1, xte_1, processing_level) 
         if i == 2:
             xtr_2 = tx[jeti_train[i]]
             ytr_2 = y[jeti_train[i]]
             xte_2 = tx_test[jeti_test[i]]
-            xtr_2, xte_2 = data_process(xtr_2, xte_2)
+            xtr_2, xte_2 = data_process(xtr_2, xte_2, processing_level)
     X_TRAIN_jets = [xtr_0, xtr_1, xtr_2]
     Y_TRAIN_jets = [ytr_0,ytr_1,ytr_2]
     X_TEST = [xte_0,xte_1,xte_2]
@@ -382,6 +384,9 @@ def accuracy(y_true, y_pred):
 
 def hyperparameter_tuning(y,tx,k,seed,meth,max_iterations,degrees,gammas,lambdas,initial):
     pd_filled = pd.DataFrame()
+    max_acc = 0
+    opt_w = []
+    opt_degree = 0
     for lam in lambdas:
         for ga in gammas:
             for deg in degrees:
@@ -395,6 +400,10 @@ def hyperparameter_tuning(y,tx,k,seed,meth,max_iterations,degrees,gammas,lambdas
                                                              ma, 
                                                              ga, 
                                                              lam)
+                        if acc > max_acc:
+                            maw_acc = acc
+                            opt_w = w
+                            opt_degree = deg
                         dictio = {'max_iters':ma,'lambda':lam,'gamma':ga,'degree':deg,'out_w':w, 'rmse_tr':rmse_tr, 'rmse_te':rmse_te, 'f1':f1, 'acc':acc, 'factors':ini}
                         pd_filled = pd_filled.append(dictio, ignore_index=True)
-    return pd_filled
+    return pd_filled, opt_w, opt_degree 

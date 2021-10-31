@@ -4,14 +4,19 @@ import matplotlib.pyplot as plt
 import os
 import seaborn as sns
 import pandas as pd
-from proj1_helpers import *
-
-
+from helpers import *
+from functions import *
 
 " FEATURE MANIPULATION METHODS"
 
     #polynomial feature augmentation
 def build_poly(x, degree): 
+    """
+    x: training data
+    degree: polynomial augmentation degree
+    
+    returns: log normalized tx
+    """
     poly = np.ones((len(x), 1))
     for deg in range(1, degree + 1):
         poly = np.c_[poly, np.power(x, deg)]
@@ -19,6 +24,11 @@ def build_poly(x, degree):
 
 
 def manipulate_missing_values(tx):
+    """
+    tx: training data
+    
+    returns: tx without useless arrays and with -999 replaced by mean of the row
+    """
     tx[tx == -999.0] = np.nan
     tx = pd.DataFrame(tx)
     tx=tx.dropna(axis=1, how='all')
@@ -32,50 +42,41 @@ def manipulate_missing_values(tx):
     
     return tx
 
-# normalize features
-def normalize_features(tx):
-    for j in range(tx.shape[1]):
-        col = tx[:,j]
-        tx[:,j] = (col-col.min())/(col.max()-col.min())
-    return tx
-
 #standardize features
 def standardize_features(tx):
+    """
+    tx: training data
+    
+    returns: standardized tx
+    """
     for j in range(tx.shape[1]):
         col = tx[:,j]
         tx[:,j] = (col-np.mean(col))/np.std(col)
     return tx
 
-# balance data because there were lots of '-1' labels
-def balance_data(tx, y, perc_plus_labels):
-    plus_indices = np.array(np.where(y==1)[0])
-    min_indices = np.array(np.where(y==-1)[0])
-    print('Before balancing')
-    print('%d (%.2f)%% 1 labels in training data'%(len(plus_indices), len(plus_indices)/(len(plus_indices)+len(min_indices))*100))
-    print('%d (%.2f)%% -1 labels in training data'%(len(min_indices), len(min_indices)/(len(plus_indices)+len(min_indices))*100))
-
-    #make balanced train datasets
-    min_labels_size = int(len(plus_indices)*(1-perc_plus_labels)/perc_plus_labels) #calculate number of majority class (-1) labels
-    random_indices = np.random.choice(min_indices, min_labels_size, replace=False) #choose random number of indices
-    a = tx[random_indices.astype(int)]
-    tx = np.append(a,tx[plus_indices.astype(int)])
-    b = y[random_indices.astype(int)]
-    y = np.append(b, y[plus_indices.astype(int)])
-    print('After balancing')
-    plus_indices = np.where(y==1)[0]
-    min_indices = np.where(y==-1)[0]
-    print('%d (%.2f)%% 1 labels in training data'%(len(plus_indices), len(plus_indices)/(len(plus_indices)+len(min_indices))*100))
-    print('%d (%.2f)%% -1 labels in training data'%(len(min_indices), len(min_indices)/(len(plus_indices)+len(min_indices))*100))
-    return tx.reshape(-1,30), y
-
 #lognormalize features
 def lognormalize_features(tx):
+    """
+    tx: training data
+    
+    returns: log normalized tx
+    """
     skewed_indices = [0, 1, 2, 3, 5, 8, 9, 10, 13, 16, 19, 21, 23, 26, 29] ## indices obtained by looking at the data
     tx[:, skewed_indices] = np.log1p(tx[:, skewed_indices])
     return tx
 
 #process data
 def data_process(x_tr,x_te,processing_level):
+    """
+    x_tr: training data
+    x_te: test data
+    processing_level: amount of processing needed
+    
+    returns: processed x_tr and x_te
+    """
+    
+    
+    retur
     if processing_level == 'std': 
         #standardize
         x_tr = standardize_features(x_tr)
@@ -93,6 +94,11 @@ def data_process(x_tr,x_te,processing_level):
     return x_tr, x_te
 #Get the index of the jet number group (cfr. report)
 def get_index_jet(tx):
+    """
+    tx: training data
+    
+    returns: 3 datasets grouped per jet number category
+    """
     jeti_0 = np.where(tx[:, 22] == 0)[0]
     jeti_1 = np.where(tx[:, 22] == 1)[0]
     jeti_2 = np.where(tx[:, 22] >= 2)[0]
@@ -100,6 +106,14 @@ def get_index_jet(tx):
 
 #create subsets of data according to the jetnumber
 def create_subdata_jetnumber(tx, y , tx_test, processing_level):
+    """
+    tx: training data
+    y: labels
+    tx_test: test data
+    processing_level: string which tells the amount of processing needed to be done
+    
+    returns: [3,n]-matrices with X_TRAIN, Y_TRAIN and X_TEST data per jet category
+    """
     jeti_train = get_index_jet(tx)  ## Separation of the data using the jet number
     jeti_test = get_index_jet(tx_test)
     for i in range(3):
@@ -123,134 +137,15 @@ def create_subdata_jetnumber(tx, y , tx_test, processing_level):
     X_TEST = [xte_0,xte_1,xte_2]
     return X_TRAIN_jets, Y_TRAIN_jets, X_TEST
 
-" MACHINE LEARNING METHODS"
-def compute_error(y, tx, w):
-    e = y-np.matmul(tx, w)
-    return e
-
-
-def compute_loss(y, tx, w):
-    N = len(y)
-    e = compute_error(y, tx, w)
-    mse = 1/(2*N)*np.sum(e**2)
-    rmse = np.sqrt(2*mse)
-    return rmse
-
-
-def compute_gradient(y, tx, w):
-    N = len(y)
-    e = compute_error(y, tx, w)
-    grad = (-1/N)*np.matmul(tx.T,e)
-    return grad
-
-
-#gradient descent
-def least_squares_GD(y, tx, initial_w, max_iters, gamma):
-    w = initial_w
-    print(max_iters)
-    for n_iter in range(max_iters):
-        grad = compute_gradient(y, tx, w)
-        w -= gamma*grad
-    loss = compute_loss(y, tx, w)
-    print("Gradient Descent: RMSE is ", loss)
-    return w, loss
-
-
-def compute_stoch_gradient(y, tx, w):
-    N = len(y)
-    e = compute_error(y, tx, w)
-    grad = (-1/N)*np.matmul(tx.T,e)
-    return grad
-
-
-#stochastic gradient descent
-def least_squares_SGD(y, tx, initial_w, max_iters, gamma,  batch_size = 1):
-    losses = []
-    w = initial_w
-    for n_iter in range(max_iters):
-        for ymini, txmini in batch_iter(y, tx, batch_size, num_batches=1, shuffle=True):
-            grad = compute_gradient(ymini, txmini, w)
-            w -= gamma*grad
-    loss = compute_loss(ymini, txmini, w)
-    print("Stochastic Gradient Descent: RMSE is ", loss)
-    return w, loss
-
-
-#least squares
-def least_squares(y, tx):
-    N = len(y)
-    w = np.linalg.solve(np.matmul(tx.T, tx), np.matmul(tx.T,y))
-    loss = compute_loss(y, tx, w)
-    print("Least squares: RMSE is ", loss)
-    return w, loss
-
-
-#ridge regression
-def ridge_regression(y, phi, lambda_):
-    N=len(phi)
-    lambda_acc=2*N*lambda_
-    kwad = np.matmul(phi.T,phi)
-    w = np.linalg.solve(kwad+lambda_acc*np.eye(kwad.shape[0]),np.matmul(phi.T,y))
-    loss = compute_loss(y, phi, w)
-    print("Ridge Regression: RMSE is ", loss)
-    return w, loss
-
-
-def sigmoid(t):
-    return 1/(1 + np.exp(-t))
-
-
-def calculate_loss_lr(y, tx, w):
-    #change -1 values to 0 in order for loss to work
-    y_ = y
-    y_[y_]
-    
-    eps = 1e-6
-    pred = sigmoid(np.matmul(tx, w))
-    a = np.matmul(y.T, np.log(pred+eps)) 
-    b = np.matmul((1-y).T, np.log(1-pred+eps))
-    loss = a+b
-    return np.sum(- loss)
-
-
-def calculate_gradient_lr(y, tx, w):
-    pred = sigmoid(np.matmul(tx, w)) 
-    grad = np.matmul(tx.T,(pred - y))
-    return grad
-
-
-def penalized_logistic_regression(y, tx, w, lambda_):
-    loss = calculate_loss_lr(y, tx, w) + lambda_*np.sum(w.T.dot(w))
-    gradient = calculate_gradient_lr(y,tx,w)+2*lambda_*w
-    return loss, gradient
-
-
-#logistic regression gradient descent
-def logistic_regression_gd(y, tx, initial_w, max_iters, gamma):
-    w = initial_w
-    for iter in range(max_iters):
-        grad = calculate_gradient_lr(y, tx, w)
-        w -= gamma*grad
-        loss = calculate_loss_lr(y, tx, w)
-    print("GD Logistic Regression: RMSE is ", loss)
-    return w, loss
-
-
-#regularized logistic regression
-def logistic_regression_reg(y, tx, initial_w, max_iters, gamma, lambda_):
-    w = initial_w
-    for iter in range(max_iters):
-        grad = penalized_logistic_regression(y, tx, w, lambda_)[1]
-        w -= gamma*grad
-    loss = penalized_logistic_regression(y, tx, w, lambda_)[0]
-    print("Reg Logistic Regression: RMSE is ", loss)
-    return w, loss
-
-
-
 " CROSS VALIDATION METHODS "
 
 def build_k_indices(y, k_fold, seed):
+    """
+    y: labels
+    k_fold: amount of cross_validation folds
+    
+    returns: [k,y.shape[0]]-matrix of random rows
+    """
     num_row = y.shape[0]
     interval = int(num_row / k_fold)
     np.random.seed(seed)
@@ -259,6 +154,14 @@ def build_k_indices(y, k_fold, seed):
     return np.array(k_indices)
 
 def get_train_test_sets(y, x, k, degree, seed):
+    """
+    y: labels
+    x: feature data
+    k: amount of cross_validation folds
+    degree: polynomial augmentation degree
+    
+    returns: random selected x_train, y_train, x_test and y_test
+    """
     k_indices=build_k_indices(y, k, seed)
     
     x_train_0, y_train_0 = x[k_indices[:k-1].ravel()], y[k_indices[:k-1].ravel()]
@@ -282,7 +185,19 @@ def get_train_test_sets(y, x, k, degree, seed):
 
 
 def call_cross_validation(y, x, k, degree, seed, opt_method, initial_w, max_iters, gamma, lambda_):
-    # Returns the average of the results
+    """
+    y: labels
+    x: feature data
+    k: amount of cross_validation folds
+    degree: polynomial augmentation degree
+    opt_meth: machine learning method to use
+    initial_w: array of factors to multiply by initial weight array
+    max_iters: maxiumum amount of iterations
+    gamma: learning rate
+    lambdas: regularization parameter
+    
+    returns: pandas dataframe, optimal weights, optimal degrees
+    """
     w_kfold = []
     loss_train_kfold = []
     loss_test_kfold = []
@@ -340,12 +255,14 @@ def call_cross_validation(y, x, k, degree, seed, opt_method, initial_w, max_iter
     return np.mean(w_kfold,axis=0), np.mean(loss_train_kfold), np.mean(loss_test_kfold), np.mean(f1_kfold), np.mean(acc_kfold) 
 
 
-
-
 "PERFORMANCE EVALUATION METHODS"
 
 # false positives and false negatives evaluation
 def f1(y_true, y_pred):
+    """
+    calculates f1 from the true and predicted labels
+    returns accuracy
+    """
     TP = len(np.where((y_true == 1) & (y_pred == 1))[0])
     FP = len(np.where((y_true == -1) & (y_pred == 1))[0])
     TN = len(np.where((y_true == -1) & (y_pred == -1))[0])
@@ -367,8 +284,12 @@ def f1(y_true, y_pred):
     return F
 
 
-# accuracy, measures the correctly identified casaes, should be near 1
+# accuracy, measures the correctly identified cases, should be near 1
 def accuracy(y_true, y_pred):
+    """
+    calculates accuracy from the true and predicted labels
+    returns accuracy
+    """
     TP = len(np.where((y_true == 1) & (y_pred == 1))[0])
     FP = len(np.where((y_true == -1) & (y_pred == 1))[0])
     TN = len(np.where((y_true == -1) & (y_pred == -1))[0])
@@ -380,8 +301,21 @@ def accuracy(y_true, y_pred):
     print('Accuracy =',A)
     return A
 
-
 def hyperparameter_tuning(y,tx,k,seed,meth,max_iterations,degrees,gammas,lambdas,initial):
+    """
+    tunes hyperparameters by using grid_search, uses accuracy as a measure
+    
+    y: labels
+    tx: feature data
+    k: amount of cross_validation folds
+    meth: machine learning method to use
+    degrees: array of polynomial augmentation degree
+    gammas: array of learning rates
+    lambdas: array of regularization parameters
+    initial: array of factors to multiply by initial weight array
+    
+    returns: pandas dataframe, optimal weights, optimal degrees
+    """
     pd_filled = pd.DataFrame()
     max_acc = 0
     opt_w = []
